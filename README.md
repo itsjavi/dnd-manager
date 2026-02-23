@@ -7,8 +7,24 @@ JavaScript and React applications.
 
 ## Table of Contents
 
-1. [Vanilla JavaScript Example](#vanilla-javascript-example)
-2. [React Example](#react-example)
+1. [Installation](#installation)
+2. [Vanilla JavaScript Example](#vanilla-javascript-example)
+3. [React Example](#react-example)
+
+---
+
+## Installation
+
+```bash
+pnpm add dnd-manager
+```
+
+Or with npm/yarn:
+
+```bash
+npm install dnd-manager
+yarn add dnd-manager
+```
 
 ---
 
@@ -199,7 +215,7 @@ data to the console, and dragging shows a preview element following the cursor.
 **TypeScript (app.ts):**
 
 ```typescript
-import { DragDropManager, type DragDropCallbacks } from './drag-drop-manager'
+import { DragDropManager, type DragDropCallbacks } from 'dnd-manager'
 
 // Types
 type GridItem = {
@@ -222,11 +238,6 @@ function initDragDropGrid(): void {
 
   // Setup DragDropManager callbacks
   const callbacks: DragDropCallbacks<GridItem, GridPosition> = {
-    canDrag: (element, position) => {
-      // Can only drag non-empty cells
-      return element.dataset.empty === undefined
-    },
-
     getItemPosition: (element, kind) => {
       const row = element.dataset.row
       const col = element.dataset.col
@@ -365,7 +376,7 @@ This example shows the same draggable grid implemented as a React component with
 
 ```typescript
 import { useEffect, useRef, useState } from 'react'
-import { DragDropManager, type DragDropCallbacks } from './drag-drop-manager'
+import { DragDropManager, type DragDropCallbacks } from 'dnd-manager'
 
 // Types
 type GridItem = {
@@ -479,10 +490,6 @@ export function DraggableGrid() {
 
     // Setup callbacks
     const callbacks: DragDropCallbacks<GridItem, GridPosition> = {
-      canDrag: (element, position) => {
-        return element.dataset.empty === undefined
-      },
-
       getItemPosition: (element, kind) => {
         const row = element.dataset.row
         const col = element.dataset.col
@@ -741,7 +748,7 @@ function DragPreview({ item, position, width, height }: DragPreviewProps) {
 
 ### DragDropManager Features Used:
 
-- `canDrag` - Prevents dragging empty cells
+- `data-empty` convention - Elements with `data-empty` are automatically treated as non-draggable
 - `getItemPosition` - Extracts grid coordinates from data attributes
 - `getItemData` - Retrieves item data from grid state
 - `onDragStart` - Shows preview and updates source appearance
