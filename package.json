@@ -26,11 +26,10 @@
     "build": "tsdown src/index.ts --dts --sourcemap --format esm --clean",
     "format": "pnpx sort-package-json && pnpm exec prettier --cache --write .",
     "prepublishOnly": "pnpm typecheck && pnpm build && publint",
-    "serve:e2e": "pnpm build && python3 -m http.server 4173 --directory .",
     "test": "vitest --run",
+    "test:coverage": "pnpm build && vitest --run --coverage",
     "test:e2e": "pnpm build && vitest --project e2e",
     "test:unit": "vitest --project unit",
-    "test:coverage": "pnpm build && vitest --run --coverage",
     "test:watch": "vitest --watch",
     "typecheck": "tsc --noEmit"
   },
