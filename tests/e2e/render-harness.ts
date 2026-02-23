@@ -16,7 +16,15 @@ function getCellColor(id: string): string {
   return CELL_COLORS[id] ?? '#334155'
 }
 
-export function renderHarness(): { dragStartCellA: () => void; destroy: () => void } {
+type RenderHarnessResult = {
+  dragStartCellA: () => void
+  dragCellAToCellBAndDrop: () => void
+  cancelDragFromCellA: () => void
+  smallMoveFromCellAThenRelease: () => void
+  destroy: () => void
+}
+
+export function renderHarness(): RenderHarnessResult {
   document.body.innerHTML = `
     <h1>dnd-manager static harness</h1>
     <p id="status" data-testid="status">Loading...</p>
@@ -49,8 +57,9 @@ export function renderHarness(): { dragStartCellA: () => void; destroy: () => vo
   const grid = document.querySelector<HTMLElement>('[data-testid="grid"]')
   const preview = document.querySelector<HTMLElement>('[data-testid="drag-preview"]')
   const cellA = document.querySelector<HTMLElement>('[data-testid="cell-a"]')
+  const cellB = document.querySelector<HTMLElement>('[data-testid="cell-b"]')
 
-  if (!status || !grid || !preview || !cellA) {
+  if (!status || !grid || !preview || !cellA || !cellB) {
     throw new Error('Failed to render e2e harness')
   }
 
@@ -120,8 +129,42 @@ export function renderHarness(): { dragStartCellA: () => void; destroy: () => vo
     )
   }
 
+  const dragCellAToCellBAndDrop = (): void => {
+    const cellBRect = cellB.getBoundingClientRect()
+    const targetX = Math.round(cellBRect.left + cellBRect.width / 2)
+    const targetY = Math.round(cellBRect.top + cellBRect.height / 2)
+
+    dragStartCellA()
+    cellA.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: targetX, clientY: targetY }),
+    )
+    cellA.dispatchEvent(
+      new PointerEvent('pointerup', { bubbles: true, clientX: targetX, clientY: targetY }),
+    )
+  }
+
+  const cancelDragFromCellA = (): void => {
+    dragStartCellA()
+    cellA.dispatchEvent(
+      new PointerEvent('pointercancel', { bubbles: true, clientX: 92, clientY: 80 }),
+    )
+  }
+
+  const smallMoveFromCellAThenRelease = (): void => {
+    cellA.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, clientX: 80, clientY: 80 }),
+    )
+    cellA.dispatchEvent(
+      new PointerEvent('pointermove', { bubbles: true, clientX: 82, clientY: 80 }),
+    )
+    cellA.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 82, clientY: 80 }))
+  }
+
   return {
     dragStartCellA,
+    dragCellAToCellBAndDrop,
+    cancelDragFromCellA,
+    smallMoveFromCellAThenRelease,
     destroy: () => manager.destroy(),
   }
 }
