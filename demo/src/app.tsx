@@ -114,7 +114,7 @@ export default function App() {
           </a>
           <a
             className="rounded-lg border border-transparent bg-transparent px-3 py-2 text-slate-100 underline decoration-dotted underline-offset-4 transition hover:border-slate-400 hover:text-white"
-            href="https://context7.com/itsjavi/dnd-manager/llms.txt?tokens=10000"
+            href="https://context7.com/itsjavi/dnd-manager/llms.txt?tokens=15000"
             target="_blank"
             rel="noreferrer"
           >
