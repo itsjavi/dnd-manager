@@ -74,12 +74,12 @@ export default function App() {
           </p>
           <p className="max-w-4xl text-base leading-relaxed text-slate-300">
             Build performant drag-and-drop interactions for vanilla JavaScript or any framework.
-            This interactive demo covers callbacks, configurable thresholds, state inspection, and
-            drag preview rendering for production-grade UI flows.
+            Designed for developers who want full control over their drag-and-drop UX without being
+            locked into specific component patterns or opinionated libraries.
           </p>
           <p className="max-w-4xl text-sm leading-relaxed text-slate-400 md:text-base">
-            Great for sortable grids, auto-scrolling lists, and custom drag workflows where you want
-            full data-level control without heavy abstractions.
+            This interactive demo covers callbacks, configurable thresholds, state inspection, and
+            drag preview rendering for sortable grids, auto-scrolling lists, and custom workflows.
           </p>
         </div>
         <div className="relative z-10 mt-6">

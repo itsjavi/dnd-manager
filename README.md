@@ -1,10 +1,11 @@
 # dnd-manager
 
-Simple, performant, and data-driven Drag-and-Drop library for vanilla JS, and compatible with any
-framework.
+Simple, performant, and data-driven Drag-and-Drop library for vanilla JS, compatible with any
+framework, and designed for developers who want full control over drag-and-drop UX without being
+locked into specific component patterns or opinionated libraries.
 
-This document provides practical examples of using the library in both vanilla JavaScript and
-React applications.
+This document provides practical examples of using the library in both vanilla JavaScript and React
+applications.
 
 ## Table of Contents
 
@@ -832,6 +833,8 @@ function DragPreview({ item, position, width, height }: DragPreviewProps) {
 
 ### Configuration:
 
+- `draggableKind` / `droppableKind` - Accept `string` or `string[]` to match one or many kinds. Each
+  element should still expose a single `data-kind` value.
 - `dragThreshold: 10` - Prevents accidental drags
 - `clickThreshold: 10` - Distinguishes clicks from drags
 - `scrollThreshold: 100` - Auto-scroll near viewport edges

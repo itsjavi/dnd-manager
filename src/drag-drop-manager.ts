@@ -65,24 +65,29 @@ export type DragDropConfig = {
   cancelOnPointerLeave?: boolean
 
   /**
-   * The `data-kind` attribute value for draggable elements.
-   * Elements with this attribute can be picked up and dragged.
+   * The `data-kind` value(s) for draggable elements.
+   * Can be a single kind or multiple kinds.
+   * Each draggable element should still expose a single `data-kind` value.
    * @example
    * draggableKind: 'cell'       // <div data-kind="cell">
+   * draggableKind: ['quest', 'bounty'] // <div data-kind="quest">
    * draggableKind: 'card'       // <div data-kind="card">
    * draggableKind: 'list-item'  // <div data-kind="list-item">
    */
-  draggableKind: string
+  draggableKind: string | string[]
 
   /**
-   * The `data-kind` attribute value for droppable target elements.
-   * Elements with this attribute can receive dropped items.
+   * The `data-kind` value(s) for droppable target elements.
+   * Can be a single kind or multiple kinds.
+   * Elements with matching kinds can receive dropped items.
+   * Each droppable element should still expose a single `data-kind` value.
    * Often the same as `draggableKind` for reorderable lists.
    * @example
    * droppableKind: 'cell'   // Can drop on cells
+   * droppableKind: ['quest', 'bounty'] // Can drop on either kind
    * droppableKind: 'zone'   // Can drop on zones
    */
-  droppableKind: string
+  droppableKind: string | string[]
 }
 
 export type PointerPosition = {
@@ -122,6 +127,8 @@ type DragState<TItem, TPosition> = {
 export class DragDropManager<TItem = unknown, TPosition = unknown> {
   private container: HTMLElement
   private config: Required<DragDropConfig>
+  private draggableKinds: string[]
+  private droppableKinds: string[]
   private callbacks: DragDropCallbacks<TItem, TPosition>
   private state: DragState<TItem, TPosition> = {
     startPosition: null,
@@ -174,6 +181,8 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
       draggableKind: config.draggableKind,
       droppableKind: config.droppableKind,
     }
+    this.draggableKinds = this.normalizeKindList(this.config.draggableKind)
+    this.droppableKinds = this.normalizeKindList(this.config.droppableKind)
 
     this.callbacks = callbacks
 
@@ -205,11 +214,13 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     if (this.state.startPosition) return
 
     const target = e.target as HTMLElement
-    const draggableElement = this.findElementByKind(target, this.config.draggableKind)
+    const draggableMatch = this.findElementByKinds(target, this.draggableKinds)
 
-    if (!draggableElement) return
+    if (!draggableMatch) return
 
-    const position = this.callbacks.getItemPosition(draggableElement, this.config.draggableKind)
+    const { element: draggableElement, kind: sourceKind } = draggableMatch
+
+    const position = this.callbacks.getItemPosition(draggableElement, sourceKind)
     if (!position) return
 
     // Check if element is empty (convention: data-empty="any-value")
@@ -291,10 +302,8 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
 
         // Find hovered droppable element
         const elementUnderCursor = document.elementFromPoint(pos.x, pos.y) as HTMLElement
-        const droppableElement = this.findElementByKind(
-          elementUnderCursor,
-          this.config.droppableKind,
-        )
+        const droppableMatch = this.findElementByKinds(elementUnderCursor, this.droppableKinds)
+        const droppableElement = droppableMatch?.element ?? null
 
         // Update hover feedback
         if (droppableElement !== this.state.lastHoveredElement) {
@@ -350,13 +359,11 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
 
     // Find drop target
     const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement
-    const droppableElement = this.findElementByKind(target, this.config.droppableKind)
+    const droppableMatch = this.findElementByKinds(target, this.droppableKinds)
+    const droppableElement = droppableMatch?.element ?? null
 
-    if (droppableElement) {
-      const targetPosition = this.callbacks.getItemPosition(
-        droppableElement,
-        this.config.droppableKind,
-      )
+    if (droppableElement && droppableMatch) {
+      const targetPosition = this.callbacks.getItemPosition(droppableElement, droppableMatch.kind)
 
       if (targetPosition) {
         // Notify drop
@@ -474,14 +481,23 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     return pointerId === null || pointerId === this.state.activePointerId
   }
 
+  private normalizeKindList(kinds: string | string[]): string[] {
+    const values = Array.isArray(kinds) ? kinds : [kinds]
+    return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
+  }
+
   /**
-   * Find closest ancestor element with matching data-kind attribute
+   * Find closest ancestor element with a `data-kind` matching any expected kind.
    */
-  private findElementByKind(element: HTMLElement | null, kind: string): HTMLElement | null {
+  private findElementByKinds(
+    element: HTMLElement | null,
+    kinds: string[],
+  ): { element: HTMLElement; kind: string } | null {
     let current = element
     while (current && current !== this.container) {
-      if (current.dataset.kind === kind) {
-        return current
+      const elementKind = current.dataset.kind
+      if (elementKind && kinds.includes(elementKind)) {
+        return { element: current, kind: elementKind }
       }
       current = current.parentElement
     }

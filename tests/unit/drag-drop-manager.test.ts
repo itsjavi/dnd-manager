@@ -199,6 +199,43 @@ describe('DragDropManager', () => {
     expect(state.sourceItem).toEqual({ id: 'source' })
   })
 
+  test('supports multiple draggable and droppable kinds', () => {
+    document.body.innerHTML = `
+      <div id="container">
+        <div id="source" data-kind="quest" data-id="source"></div>
+        <div id="target" data-kind="slot-active" data-id="target"></div>
+      </div>
+    `
+    const container = document.querySelector<HTMLElement>('#container')
+    const source = document.querySelector<HTMLElement>('#source')
+    const target = document.querySelector<HTMLElement>('#target')
+    if (!container || !source || !target) throw new Error('Test setup failed')
+
+    const onDrop = vi.fn()
+    mockElementFromPoint(() => target)
+
+    const manager = new DragDropManager<Item, string>(
+      container,
+      {
+        draggableKind: ['quest', 'bounty'],
+        droppableKind: ['slot-backlog', 'slot-active'],
+        dragThreshold: 1,
+      },
+      {
+        onDrop,
+        getItemPosition: (element, kind) => `${kind}:${element.dataset.id ?? 'unknown'}`,
+        getItemData: (element) => ({ id: element.dataset.id ?? 'unknown' }),
+      },
+    )
+
+    source.dispatchEvent(pointerEvent('pointerdown', 0, 0))
+    source.dispatchEvent(pointerEvent('pointermove', 2, 0))
+    source.dispatchEvent(pointerEvent('pointerup', 2, 0))
+
+    expect(onDrop).toHaveBeenCalledWith('quest:source', 'slot-active:target', { id: 'source' })
+    manager.destroy()
+  })
+
   test('prevents default on valid pointer down', () => {
     const { container, source } = setupDom()
     const manager = new DragDropManager<Item, string>(

@@ -35,8 +35,10 @@ const callbacks: DragDropCallbacks<Item, Position> = {
 }
 
 const manager = new DragDropManager<Item, Position>(container, {
-  draggableKind: 'cell',
-  droppableKind: 'cell',
+  // Supports string OR string[] for multi-kind matching.
+  // Each element should still expose a single data-kind value.
+  draggableKind: ['cell'],
+  droppableKind: ['cell'],
   dragThreshold: 10,
   clickThreshold: 10,
   scrollThreshold: 100,

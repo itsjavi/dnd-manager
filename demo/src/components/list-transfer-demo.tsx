@@ -16,10 +16,10 @@ type TransferItem = {
 
 type TransferPosition = {
   listId: TransferListId
-  index: number
+  index?: number
 }
 
-type TransferData = Record<TransferListId, (TransferItem | null)[]>
+type TransferData = Record<TransferListId, TransferItem[]>
 
 type ListTransferDemoProps = {
   config: DemoConfig
@@ -51,28 +51,20 @@ const INITIAL_TRANSFER_DATA: TransferData = {
     { id: 'b1', name: 'Track the Bandit', color: '#f97316', kind: 'bounty' },
     { id: 'q2', name: 'Seal the Rift', color: '#0ea5e9', kind: 'quest' },
     { id: 'b2', name: 'Capture the Smuggler', color: '#f59e0b', kind: 'bounty' },
-    null,
-    null,
   ],
-  active: [
-    { id: 'q3', name: 'Escort the Caravan', color: '#8b5cf6', kind: 'quest' },
-    null,
-    null,
-    null,
-    null,
-    null,
-  ],
+  active: [{ id: 'q3', name: 'Escort the Caravan', color: '#8b5cf6', kind: 'quest' }],
 }
 
 function getTransferPosition(element: HTMLElement): TransferPosition | null {
   const listId = element.dataset.listId as TransferListId | undefined
   const index = element.dataset.index
-  if (!listId || (listId !== 'backlog' && listId !== 'active') || index === undefined) {
+  if (!listId || (listId !== 'backlog' && listId !== 'active')) {
     return null
   }
+  const parsedIndex = index === undefined ? undefined : Number(index)
   return {
     listId,
-    index: Number(index),
+    index: Number.isFinite(parsedIndex) ? parsedIndex : undefined,
   }
 }
 
@@ -114,7 +106,12 @@ export function ListTransferDemo({
   const callbacks = useMemo<DragDropCallbacks<TransferItem, TransferPosition>>(
     () => ({
       getItemPosition: (element) => getTransferPosition(element),
-      getItemData: (_element, position) => transferData[position.listId]?.[position.index] ?? null,
+      getItemData: (_element, position) => {
+        if (position.index === undefined) {
+          return null
+        }
+        return transferData[position.listId]?.[position.index] ?? null
+      },
       onDragStart: (element, position, item) => {
         previewControllerRef.current.startFromElement(element)
         setDraggedKind(item.kind)
@@ -124,10 +121,8 @@ export function ListTransferDemo({
         previewControllerRef.current.moveToPointer(pos)
       },
       onDrop: (sourcePosition, targetPosition, sourceItem) => {
-        if (
-          sourcePosition.listId === targetPosition.listId &&
-          sourcePosition.index === targetPosition.index
-        ) {
+        const sourceIndex = sourcePosition.index
+        if (sourceIndex === undefined) {
           return
         }
 
@@ -140,20 +135,75 @@ export function ListTransferDemo({
           return
         }
 
+        const targetIndex = targetPosition.index
+        if (
+          sourcePosition.listId === targetPosition.listId &&
+          (targetIndex === undefined || targetIndex === sourceIndex)
+        ) {
+          return
+        }
+
+        // For cross-list item-to-item swaps, validate that the displaced item
+        // can move back into the source list.
+        if (targetIndex !== undefined && sourcePosition.listId !== targetPosition.listId) {
+          const displacedItem = transferData[targetPosition.listId][targetIndex]
+          if (displacedItem) {
+            const sourceAcceptedKinds = LIST_CONFIG[sourcePosition.listId].accepts
+            if (!sourceAcceptedKinds.includes(displacedItem.kind)) {
+              onEvent(
+                'onDropRejected',
+                `${displacedItem.kind} cannot be moved to ${LIST_CONFIG[sourcePosition.listId].title}`,
+              )
+              return
+            }
+          }
+        }
+
         onEvent(
           'onDrop',
-          `${sourceItem.name} moved ${sourcePosition.listId}[${sourcePosition.index}] -> ${targetPosition.listId}[${targetPosition.index}]`,
+          targetIndex === undefined
+            ? `${sourceItem.name} moved ${sourcePosition.listId}[${sourceIndex}] -> ${targetPosition.listId}`
+            : `${sourceItem.name} moved ${sourcePosition.listId}[${sourceIndex}] -> ${targetPosition.listId}[${targetIndex}]`,
         )
 
         setTransferData((previousData) => {
-          const nextData: TransferData = {
-            backlog: [...previousData.backlog],
-            active: [...previousData.active],
+          if (sourcePosition.listId === targetPosition.listId && targetIndex !== undefined) {
+            const nextList = [...previousData[sourcePosition.listId]]
+            const sourceItemInList = nextList[sourceIndex]
+            const targetItemInList = nextList[targetIndex]
+            if (!sourceItemInList || !targetItemInList) {
+              return previousData
+            }
+            nextList[sourceIndex] = targetItemInList
+            nextList[targetIndex] = sourceItemInList
+            return {
+              ...previousData,
+              [sourcePosition.listId]: nextList,
+            }
           }
-          const targetItem = nextData[targetPosition.listId][targetPosition.index] ?? null
-          nextData[targetPosition.listId][targetPosition.index] = sourceItem
-          nextData[sourcePosition.listId][sourcePosition.index] = targetItem
-          return nextData
+
+          const sourceList = [...previousData[sourcePosition.listId]]
+          const targetList = [...previousData[targetPosition.listId]]
+          const [movedItem] = sourceList.splice(sourceIndex, 1)
+          if (!movedItem) {
+            return previousData
+          }
+
+          if (targetIndex === undefined) {
+            targetList.push(movedItem)
+          } else {
+            const displacedItem = targetList[targetIndex]
+            targetList[targetIndex] = movedItem
+            if (displacedItem) {
+              sourceList.push(displacedItem)
+            }
+          }
+
+          return {
+            ...previousData,
+            [sourcePosition.listId]: sourceList,
+            [targetPosition.listId]: targetList,
+          }
         })
       },
       onDragEnd: () => {
@@ -162,12 +212,15 @@ export function ListTransferDemo({
         onEvent('onDragEnd', 'Transfer drag completed')
       },
       onClick: (_element, position) => {
-        const item = transferData[position.listId][position.index]
+        const item =
+          position.index === undefined
+            ? null
+            : (transferData[position.listId][position.index] ?? null)
         onEvent(
           'onClick',
           item
             ? `${item.name} (${item.kind}) in ${position.listId}`
-            : `Clicked empty slot ${position.listId}[${position.index}]`,
+            : `Clicked column ${position.listId}`,
         )
       },
     }),
@@ -176,8 +229,8 @@ export function ListTransferDemo({
 
   const managerConfig = useMemo(
     () => ({
-      draggableKind: 'transfer-item',
-      droppableKind: 'transfer-item',
+      draggableKind: ['quest', 'bounty'],
+      droppableKind: ['transfer-list', 'quest', 'bounty'],
       cancelOnEscape: true,
       cancelOnPointerLeave: true,
       dragThreshold: config.dragThreshold,
@@ -239,46 +292,46 @@ export function ListTransferDemo({
           return (
             <article
               key={listId}
-              className="rounded-xl border border-slate-800/80 bg-slate-950/35 p-3"
+              data-kind="transfer-list"
+              data-list-id={listId}
+              className={cn(
+                'rounded-xl border border-slate-800/80 bg-slate-950/35 p-3 transition duration-150',
+                'data-[hovered=true]:ring-2',
+                hoverRingClass,
+              )}
             >
               <h4 className="text-sm font-semibold text-slate-100">{listConfig.title}</h4>
               <p className="mt-1 text-xs text-slate-400">{listConfig.description}</p>
               <div className="mt-3 space-y-2">
                 {transferData[listId].map((item, index) => (
                   <div
-                    key={`${listId}-${index}`}
-                    data-kind="transfer-item"
+                    key={item.id}
+                    data-kind={item.kind}
                     data-list-id={listId}
                     data-index={index}
-                    data-empty={item ? undefined : 'true'}
                     className={cn(
-                      'rounded-lg border border-slate-700/80 px-3 py-2 transition duration-150 select-none touch-none',
-                      'data-[dragging=true]:opacity-40 data-[dragging=true]:cursor-grabbing',
-                      'data-[hovered=true]:scale-[1.01] data-[hovered=true]:ring-2',
-                      hoverRingClass,
-                      item
-                        ? 'cursor-grab text-white'
-                        : 'border-dashed bg-slate-900/40 text-sm text-slate-500',
+                      'flex cursor-grab select-none items-center justify-between gap-2 rounded-md px-3 py-2 text-white transition duration-150 touch-none',
+                      'data-[dragging=true]:cursor-grabbing data-[dragging=true]:opacity-40',
+                      'data-[hovered=true]:opacity-65 data-[hovered=true]:ring-2 data-[hovered=true]:ring-white/35',
                     )}
-                    style={item ? { background: item.color } : undefined}
+                    style={{ background: item.color }}
                   >
-                    {item ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium">{item.name}</span>
-                        <span
-                          className={cn(
-                            'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                            kindBadgeClass(item.kind),
-                          )}
-                        >
-                          {item.kind}
-                        </span>
-                      </div>
-                    ) : (
-                      <span>Empty Slot</span>
-                    )}
+                    <span className="truncate text-sm font-medium">{item.name}</span>
+                    <span
+                      className={cn(
+                        'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                        kindBadgeClass(item.kind),
+                      )}
+                    >
+                      {item.kind}
+                    </span>
                   </div>
                 ))}
+                {transferData[listId].length === 0 ? (
+                  <div className="rounded-md border border-dashed border-slate-700/80 px-3 py-4 text-sm text-slate-500">
+                    Drop here
+                  </div>
+                ) : null}
               </div>
             </article>
           )
