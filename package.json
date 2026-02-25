@@ -30,7 +30,7 @@
     "build:all": "pnpm build && pnpm build:demo",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "prepublishOnly": "pnpm typecheck && pnpm build && publint",
+    "prepublishOnly": "pnpm typecheck && pnpm build && publint && npm login",
     "test": "vitest --run",
     "test:coverage": "pnpm build && vitest --run --coverage",
     "test:e2e": "pnpm build && vitest --project e2e",
@@ -43,9 +43,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^28.1.0",
     "oxfmt": "^0.35.0",
-    "prettier": "^3.8.1",
     "publint": "^0.3.17",
-    "sort-package-json": "^3.6.1",
     "tsdown": "^0.20.3",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
