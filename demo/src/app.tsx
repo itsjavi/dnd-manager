@@ -8,7 +8,7 @@ import { ListTransferDemo } from '~/components/list-transfer-demo'
 import { StateInspector } from '~/components/state-inspector'
 import { DEFAULT_DEMO_CONFIG } from '~/lib/demo-data'
 import type { ManagerSnapshot, TelemetryEvent } from '~/lib/demo-types'
-import { cn } from '~/lib/utils'
+import { assetUrl, cn } from '~/lib/utils'
 
 type Scenario = 'grid' | 'list' | 'transfer'
 
@@ -28,6 +28,8 @@ export default function App() {
     destroy: () => {},
     restart: () => {},
   })
+
+  const logoUrl = assetUrl('/logo.png')
 
   const addEvent = useCallback((name: string, detail: string) => {
     setEvents((previousEvents) => {
@@ -60,7 +62,7 @@ export default function App() {
         <div className="relative z-10 space-y-5">
           <h1 className="flex items-center gap-3 text-4xl font-semibold tracking-tight text-white md:text-5xl">
             <img
-              src="/logo.png"
+              src={logoUrl}
               alt="logo"
               aria-hidden="true"
               className="h-10 w-10 invert object-contain md:h-12 md:w-12 [mix-blend-mode:lighten]"
