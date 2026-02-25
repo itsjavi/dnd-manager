@@ -23,8 +23,13 @@
     }
   },
   "scripts": {
+    "dev": "pnpm --filter dnd-manager-demo dev",
     "build": "tsdown src/index.ts --dts --sourcemap --format esm --clean",
-    "format": "pnpx sort-package-json && pnpm exec prettier --cache --write .",
+    "build:watch": "pnpm build --watch",
+    "build:demo": "pnpm --filter dnd-manager-demo build",
+    "build:all": "pnpm build && pnpm build:demo",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "prepublishOnly": "pnpm typecheck && pnpm build && publint",
     "test": "vitest --run",
     "test:coverage": "pnpm build && vitest --run --coverage",
