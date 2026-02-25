@@ -390,7 +390,12 @@ describe('DragDropManager', () => {
     source.dispatchEvent(pointerEvent('pointerup', 10, 10))
 
     expect(onDrop).toHaveBeenCalledWith('source', 'target', { id: 'source' })
-    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(onDragEnd).toHaveBeenCalledTimes(1)
+    expect(onDragEnd).toHaveBeenCalledWith({
+      sourcePosition: 'source',
+      targetPosition: 'target',
+      sourceItem: { id: 'source' },
+    })
     expect(source.hasAttribute('data-dragging')).toBe(false)
     expect(manager.isDragging()).toBe(false)
   })
@@ -420,7 +425,8 @@ describe('DragDropManager', () => {
     source.dispatchEvent(pointerEvent('pointerup', 10, 10))
 
     expect(onDrop).not.toHaveBeenCalled()
-    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(onDragEnd).toHaveBeenCalledTimes(1)
+    expect(onDragEnd).toHaveBeenCalledWith(null)
     expect(manager.isDragging()).toBe(false)
   })
 
@@ -465,7 +471,8 @@ describe('DragDropManager', () => {
     source.dispatchEvent(pointerEvent('pointermove', 3, 0))
 
     container.dispatchEvent(pointerEvent('pointercancel', 3, 3))
-    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(onDragEnd).toHaveBeenCalledTimes(1)
+    expect(onDragEnd).toHaveBeenCalledWith(null)
     expect(cancelSpy).toHaveBeenCalledWith(99)
 
     manager.destroy()
@@ -533,7 +540,8 @@ describe('DragDropManager', () => {
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
 
-    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(onDragEnd).toHaveBeenCalledTimes(1)
+    expect(onDragEnd).toHaveBeenCalledWith(null)
     expect(manager.isDragging()).toBe(false)
     expect(source.hasAttribute('data-dragging')).toBe(false)
   })
@@ -587,7 +595,8 @@ describe('DragDropManager', () => {
     Object.defineProperty(leaveEvent, 'relatedTarget', { value: null })
     window.dispatchEvent(leaveEvent)
 
-    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(onDragEnd).toHaveBeenCalledTimes(1)
+    expect(onDragEnd).toHaveBeenCalledWith(null)
     expect(manager.isDragging()).toBe(false)
   })
 })

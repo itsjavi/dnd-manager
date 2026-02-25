@@ -95,6 +95,13 @@ export type PointerPosition = {
   y: number
 }
 
+/** Result passed to onDragEnd when the item was dropped on a valid target; null when drag was cancelled or dropped on invalid target. */
+export type DragEndResult<TItem, TPosition> = {
+  sourcePosition: TPosition
+  targetPosition: TPosition
+  sourceItem: TItem
+}
+
 export type DragDropCallbacks<TItem, TPosition> = {
   /** Called when determining if an element can be dragged */
   canDrag?: (element: HTMLElement, position: TPosition) => boolean
@@ -104,8 +111,8 @@ export type DragDropCallbacks<TItem, TPosition> = {
   onDragMove?: (pos: PointerPosition, hoveredElement: HTMLElement | null) => void
   /** Called when item is dropped on a valid target */
   onDrop?: (sourcePosition: TPosition, targetPosition: TPosition, sourceItem: TItem) => void
-  /** Called when drag ends (regardless of success) */
-  onDragEnd?: () => void
+  /** Called when drag ends (success or cancel). Receives drop result when dropped on valid target, null otherwise. Use for reordering DOM/state and cleanup. */
+  onDragEnd?: (result: DragEndResult<TItem, TPosition> | null) => void
   /** Called on simple click/tap (no drag) */
   onClick?: (element: HTMLElement, position: TPosition) => void
   /** Called to extract item data from an element */
@@ -122,6 +129,8 @@ type DragState<TItem, TPosition> = {
   activePointerId: number | null
   isDragging: boolean
   lastHoveredElement: HTMLElement | null
+  /** Set when drop on valid target; passed to onDragEnd in cleanup */
+  lastDropResult: DragEndResult<TItem, TPosition> | null
 }
 
 export class DragDropManager<TItem = unknown, TPosition = unknown> {
@@ -138,6 +147,7 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     activePointerId: null,
     isDragging: false,
     lastHoveredElement: null,
+    lastDropResult: null,
   }
   private rafId: number | null = null
   private lastPointerPos: PointerPosition | null = null
@@ -366,8 +376,13 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
       const targetPosition = this.callbacks.getItemPosition(droppableElement, droppableMatch.kind)
 
       if (targetPosition) {
-        // Notify drop
-        this.callbacks.onDrop?.(this.state.sourcePosition, targetPosition, this.state.sourceItem)
+        const result: DragEndResult<TItem, TPosition> = {
+          sourcePosition: this.state.sourcePosition,
+          targetPosition,
+          sourceItem: this.state.sourceItem,
+        }
+        this.state.lastDropResult = result
+        this.callbacks.onDrop?.(result.sourcePosition, result.targetPosition, result.sourceItem)
       }
     }
 
@@ -451,9 +466,9 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
       this.rafId = null
     }
 
-    // Notify drag end
+    // Notify drag end (pass drop result when drop was valid, null when cancelled or invalid)
     if (this.state.isDragging) {
-      this.callbacks.onDragEnd?.()
+      this.callbacks.onDragEnd?.(this.state.lastDropResult)
     }
 
     // Reset state
@@ -465,6 +480,7 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
       activePointerId: null,
       isDragging: false,
       lastHoveredElement: null,
+      lastDropResult: null,
     }
     this.lastPointerPos = null
   }
