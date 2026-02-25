@@ -1,4 +1,4 @@
-import { DragDropManager } from '../../dist/index.mjs'
+import { DragDropManager, DragPreviewController } from '../../dist/index.mjs'
 
 type DemoItem = {
   id: string
@@ -50,16 +50,14 @@ export function renderHarness(): RenderHarnessResult {
         Beta
       </div>
     </div>
-    <div id="drag-preview" hidden data-testid="drag-preview"></div>
   `
 
   const status = document.querySelector<HTMLElement>('[data-testid="status"]')
   const grid = document.querySelector<HTMLElement>('[data-testid="grid"]')
-  const preview = document.querySelector<HTMLElement>('[data-testid="drag-preview"]')
   const cellA = document.querySelector<HTMLElement>('[data-testid="cell-a"]')
   const cellB = document.querySelector<HTMLElement>('[data-testid="cell-b"]')
 
-  if (!status || !grid || !preview || !cellA || !cellB) {
+  if (!status || !grid || !cellA || !cellB) {
     throw new Error('Failed to render e2e harness')
   }
 
@@ -72,6 +70,10 @@ export function renderHarness(): RenderHarnessResult {
     cell.style.background = getCellColor(item.id)
   }
 
+  const previewController = new DragPreviewController({
+    className: 'drop-shadow-xl',
+  })
+
   const manager = new DragDropManager<DemoItem, DemoPosition>(
     grid,
     {
@@ -81,15 +83,12 @@ export function renderHarness(): RenderHarnessResult {
       clickThreshold: 8,
     },
     {
-      onDragStart: (_element, _position, item) => {
-        preview.hidden = false
-        preview.textContent = item.label
-        preview.style.background = getCellColor(item.id)
+      onDragStart: (element, _position, item) => {
+        previewController.startFromElement(element)
         status.textContent = `Dragging ${item.label}`
       },
       onDragMove: (pos) => {
-        preview.style.left = `${pos.x}px`
-        preview.style.top = `${pos.y}px`
+        previewController.moveToPointer(pos)
       },
       onDrop: (sourcePosition, targetPosition, sourceItem) => {
         const sourceCell = grid.querySelector<HTMLElement>(`[data-id="${sourcePosition}"]`)
@@ -106,7 +105,7 @@ export function renderHarness(): RenderHarnessResult {
         status.textContent = `Dropped ${sourceItem.label} on ${targetPosition.toUpperCase()}`
       },
       onDragEnd: () => {
-        preview.hidden = true
+        previewController.stop()
         status.textContent = 'Ready'
       },
       onClick: (element) => {
@@ -165,6 +164,9 @@ export function renderHarness(): RenderHarnessResult {
     dragCellAToCellBAndDrop,
     cancelDragFromCellA,
     smallMoveFromCellAThenRelease,
-    destroy: () => manager.destroy(),
+    destroy: () => {
+      previewController.destroy()
+      manager.destroy()
+    },
   }
 }

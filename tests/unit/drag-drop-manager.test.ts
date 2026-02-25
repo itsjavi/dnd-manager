@@ -476,4 +476,81 @@ describe('DragDropManager', () => {
     expect(target.hasAttribute('data-hovered')).toBe(false)
     expect(manager.isDragging()).toBe(false)
   })
+
+  test('cancels an active drag when Escape is pressed', () => {
+    const { container, source } = setupDom()
+    const onDragEnd = vi.fn()
+    const manager = new DragDropManager<Item, string>(
+      container,
+      { draggableKind: 'item', droppableKind: 'item', dragThreshold: 1, cancelOnEscape: true },
+      {
+        onDragEnd,
+        getItemPosition: (element) => element.dataset.id ?? null,
+        getItemData: (element) => ({ id: element.dataset.id ?? 'unknown' }),
+      },
+    )
+
+    source.dispatchEvent(pointerEvent('pointerdown', 0, 0))
+    source.dispatchEvent(pointerEvent('pointermove', 2, 0))
+    expect(manager.isDragging()).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+
+    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(manager.isDragging()).toBe(false)
+    expect(source.hasAttribute('data-dragging')).toBe(false)
+  })
+
+  test('does not cancel on Escape when cancelOnEscape is false', () => {
+    const { container, source } = setupDom()
+    const onDragEnd = vi.fn()
+    const manager = new DragDropManager<Item, string>(
+      container,
+      { draggableKind: 'item', droppableKind: 'item', dragThreshold: 1, cancelOnEscape: false },
+      {
+        onDragEnd,
+        getItemPosition: (element) => element.dataset.id ?? null,
+        getItemData: (element) => ({ id: element.dataset.id ?? 'unknown' }),
+      },
+    )
+
+    source.dispatchEvent(pointerEvent('pointerdown', 0, 0))
+    source.dispatchEvent(pointerEvent('pointermove', 2, 0))
+    expect(manager.isDragging()).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+
+    expect(onDragEnd).not.toHaveBeenCalled()
+    expect(manager.isDragging()).toBe(true)
+  })
+
+  test('cancels an active drag when pointer leaves the window', () => {
+    const { container, source } = setupDom()
+    const onDragEnd = vi.fn()
+    const manager = new DragDropManager<Item, string>(
+      container,
+      {
+        draggableKind: 'item',
+        droppableKind: 'item',
+        dragThreshold: 1,
+        cancelOnPointerLeave: true,
+      },
+      {
+        onDragEnd,
+        getItemPosition: (element) => element.dataset.id ?? null,
+        getItemData: (element) => ({ id: element.dataset.id ?? 'unknown' }),
+      },
+    )
+
+    source.dispatchEvent(pointerEvent('pointerdown', 0, 0))
+    source.dispatchEvent(pointerEvent('pointermove', 2, 0))
+    expect(manager.isDragging()).toBe(true)
+
+    const leaveEvent = new MouseEvent('mouseout', { bubbles: true })
+    Object.defineProperty(leaveEvent, 'relatedTarget', { value: null })
+    window.dispatchEvent(leaveEvent)
+
+    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(manager.isDragging()).toBe(false)
+  })
 })

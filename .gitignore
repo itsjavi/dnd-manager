@@ -30,3 +30,6 @@ tmp/
 *.tar
 
 coverage/
+tests/*/__screenshots__/
+
+*~lock~

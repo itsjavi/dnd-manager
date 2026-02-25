@@ -9,8 +9,9 @@ React applications.
 ## Table of Contents
 
 1. [Installation](#installation)
-2. [Vanilla JavaScript Example](#vanilla-javascript-example)
-3. [React Example](#react-example)
+2. [Clone Preview Helper](#clone-preview-helper)
+3. [Vanilla JavaScript Example](#vanilla-javascript-example)
+4. [React Example](#react-example)
 
 ---
 
@@ -26,6 +27,72 @@ Or with npm/yarn:
 npm install dnd-manager
 yarn add dnd-manager
 ```
+
+---
+
+## Clone Preview Helper
+
+Use `new DragPreviewController()` to get a clone of the dragged element that follows the cursor with
+`position: fixed`, `pointer-events: none`, and transform-based movement.
+
+```typescript
+import {
+  DragPreviewController,
+  DragDropManager,
+  type DragDropCallbacks,
+  type PointerPosition,
+} from 'dnd-manager'
+
+type Item = { index: number }
+type Position = { index: number }
+
+const preview = new DragPreviewController({
+  zIndex: 9999,
+  opacity: 0.95,
+  className: 'drop-shadow-xl',
+})
+
+const callbacks: DragDropCallbacks<Item, Position> = {
+  getItemPosition: (element) => {
+    const raw = element.dataset.index
+    if (!raw) return null
+    const index = Number.parseInt(raw, 10)
+    return Number.isFinite(index) ? { index } : null
+  },
+
+  getItemData: (_element, pos) => ({ index: pos.index }),
+
+  onDragStart: (element) => {
+    preview.startFromElement(element)
+  },
+
+  onDragMove: (pos: PointerPosition) => {
+    preview.moveToPointer(pos)
+  },
+
+  onDragEnd: () => {
+    preview.stop()
+  },
+}
+
+const manager = new DragDropManager<Item, Position>(
+  '#container',
+  {
+    draggableKind: 'ITEM',
+    droppableKind: 'ITEM',
+  },
+  callbacks,
+)
+
+// Important cleanup for unmount/page teardown.
+function cleanup() {
+  preview.destroy()
+  manager.destroy()
+}
+```
+
+This helper uses the clone-in-`document.body` pattern to avoid drift in scrolled containers and
+keeps cursor tracking smooth via transform updates.
 
 ---
 
@@ -355,6 +422,8 @@ function initDragDropGrid(): void {
       clickThreshold: 10,
       scrollThreshold: 100,
       scrollSpeed: 10,
+      cancelOnEscape: true,
+      cancelOnPointerLeave: true,
     },
     callbacks,
   )
@@ -565,6 +634,8 @@ export function DraggableGrid() {
         clickThreshold: 10,
         scrollThreshold: 100,
         scrollSpeed: 10,
+        cancelOnEscape: true,
+        cancelOnPointerLeave: true,
       },
       callbacks,
     )
@@ -765,6 +836,8 @@ function DragPreview({ item, position, width, height }: DragPreviewProps) {
 - `clickThreshold: 10` - Distinguishes clicks from drags
 - `scrollThreshold: 100` - Auto-scroll near viewport edges
 - `scrollSpeed: 10` - Smooth scroll speed
+- `cancelOnEscape: true` - Cancels active drag when Escape is pressed
+- `cancelOnPointerLeave: true` - Cancels active drag if pointer leaves the window
 
 ---
 

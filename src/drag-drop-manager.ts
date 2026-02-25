@@ -51,6 +51,20 @@ export type DragDropConfig = {
   scrollSpeed?: number
 
   /**
+   * Cancel the current drag operation when Escape is pressed.
+   * Useful for explicit keyboard cancellation.
+   * @default true
+   */
+  cancelOnEscape?: boolean
+
+  /**
+   * Cancel the current drag operation when the pointer leaves the browser window.
+   * Prevents "stuck dragging" when pointerup happens outside the app/window.
+   * @default true
+   */
+  cancelOnPointerLeave?: boolean
+
+  /**
    * The `data-kind` attribute value for draggable elements.
    * Elements with this attribute can be picked up and dragged.
    * @example
@@ -100,6 +114,7 @@ type DragState<TItem, TPosition> = {
   sourceElement: HTMLElement | null
   sourcePosition: TPosition | null
   sourceItem: TItem | null
+  activePointerId: number | null
   isDragging: boolean
   lastHoveredElement: HTMLElement | null
 }
@@ -113,6 +128,7 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     sourceElement: null,
     sourcePosition: null,
     sourceItem: null,
+    activePointerId: null,
     isDragging: false,
     lastHoveredElement: null,
   }
@@ -123,6 +139,8 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     pointerMove: (e: PointerEvent) => void
     pointerUp: (e: PointerEvent) => void
     pointerCancel: (e: PointerEvent) => void
+    keyDown: (e: KeyboardEvent) => void
+    mouseOut: (e: MouseEvent) => void
   }
 
   constructor(
@@ -151,6 +169,8 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
       clickThreshold: config.clickThreshold ?? 10,
       scrollThreshold: config.scrollThreshold ?? 100,
       scrollSpeed: config.scrollSpeed ?? 10,
+      cancelOnEscape: config.cancelOnEscape ?? true,
+      cancelOnPointerLeave: config.cancelOnPointerLeave ?? true,
       draggableKind: config.draggableKind,
       droppableKind: config.droppableKind,
     }
@@ -163,6 +183,8 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
       pointerMove: this.handlePointerMove.bind(this),
       pointerUp: this.handlePointerUp.bind(this),
       pointerCancel: this.handlePointerCancel.bind(this),
+      keyDown: this.handleKeyDown.bind(this),
+      mouseOut: this.handleMouseOut.bind(this),
     }
 
     this.attachListeners()
@@ -173,9 +195,15 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     this.container.addEventListener('pointermove', this.boundHandlers.pointerMove)
     this.container.addEventListener('pointerup', this.boundHandlers.pointerUp)
     this.container.addEventListener('pointercancel', this.boundHandlers.pointerCancel)
+    window.addEventListener('pointerup', this.boundHandlers.pointerUp)
+    window.addEventListener('pointercancel', this.boundHandlers.pointerCancel)
+    window.addEventListener('keydown', this.boundHandlers.keyDown)
+    window.addEventListener('mouseout', this.boundHandlers.mouseOut)
   }
 
   private handlePointerDown(e: PointerEvent): void {
+    if (this.state.startPosition) return
+
     const target = e.target as HTMLElement
     const draggableElement = this.findElementByKind(target, this.config.draggableKind)
 
@@ -205,9 +233,24 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     this.state.sourceElement = draggableElement
     this.state.sourcePosition = position
     this.state.sourceItem = item
+    this.state.activePointerId = this.getPointerId(e)
+
+    // Capture pointer events outside container boundaries when supported.
+    if (
+      this.state.activePointerId !== null &&
+      typeof draggableElement.setPointerCapture === 'function'
+    ) {
+      try {
+        draggableElement.setPointerCapture(this.state.activePointerId)
+      } catch {
+        // Ignore unsupported/inactive-pointer capture errors.
+      }
+    }
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    if (!this.isActivePointer(e)) return
+
     const currentPos: PointerPosition = { x: e.clientX, y: e.clientY }
 
     // Check if we should start dragging (threshold not yet met)
@@ -280,6 +323,8 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (!this.isActivePointer(e)) return
+
     // Handle click/tap if we never started dragging
     if (this.state.startPosition && !this.state.isDragging) {
       const currentPos = { x: e.clientX, y: e.clientY }
@@ -326,6 +371,20 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     this.cleanup()
   }
 
+  private handleKeyDown(e: KeyboardEvent): void {
+    if (!this.config.cancelOnEscape) return
+    if (e.key !== 'Escape') return
+    if (!this.state.startPosition) return
+    this.cleanup()
+  }
+
+  private handleMouseOut(e: MouseEvent): void {
+    if (!this.config.cancelOnPointerLeave) return
+    if (!this.state.startPosition) return
+    if (e.relatedTarget !== null) return
+    this.cleanup()
+  }
+
   private handleAutoScroll(pos: PointerPosition): void {
     const { scrollThreshold, scrollSpeed } = this.config
     const viewportWidth = window.innerWidth
@@ -354,6 +413,21 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
   }
 
   private cleanup(): void {
+    // Release pointer capture if we own it.
+    if (
+      this.state.sourceElement &&
+      this.state.activePointerId !== null &&
+      typeof this.state.sourceElement.hasPointerCapture === 'function' &&
+      typeof this.state.sourceElement.releasePointerCapture === 'function' &&
+      this.state.sourceElement.hasPointerCapture(this.state.activePointerId)
+    ) {
+      try {
+        this.state.sourceElement.releasePointerCapture(this.state.activePointerId)
+      } catch {
+        // Ignore release errors for inactive pointer.
+      }
+    }
+
     // Remove data-dragging attribute
     if (this.state.sourceElement) {
       this.state.sourceElement.removeAttribute('data-dragging')
@@ -381,10 +455,23 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
       sourceElement: null,
       sourcePosition: null,
       sourceItem: null,
+      activePointerId: null,
       isDragging: false,
       lastHoveredElement: null,
     }
     this.lastPointerPos = null
+  }
+
+  private getPointerId(e: PointerEvent): number | null {
+    return typeof e.pointerId === 'number' ? e.pointerId : null
+  }
+
+  private isActivePointer(e: PointerEvent): boolean {
+    if (this.state.activePointerId === null) {
+      return true
+    }
+    const pointerId = this.getPointerId(e)
+    return pointerId === null || pointerId === this.state.activePointerId
   }
 
   /**
@@ -431,5 +518,9 @@ export class DragDropManager<TItem = unknown, TPosition = unknown> {
     this.container.removeEventListener('pointermove', this.boundHandlers.pointerMove)
     this.container.removeEventListener('pointerup', this.boundHandlers.pointerUp)
     this.container.removeEventListener('pointercancel', this.boundHandlers.pointerCancel)
+    window.removeEventListener('pointerup', this.boundHandlers.pointerUp)
+    window.removeEventListener('pointercancel', this.boundHandlers.pointerCancel)
+    window.removeEventListener('keydown', this.boundHandlers.keyDown)
+    window.removeEventListener('mouseout', this.boundHandlers.mouseOut)
   }
 }
