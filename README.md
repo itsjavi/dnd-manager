@@ -1,20 +1,23 @@
 # dnd-manager
 
-Simple, performant, and data-driven Drag-and-Drop library for vanilla JS, compatible with any
-framework, and designed for developers who want full control over drag-and-drop UX without being
-locked into specific component patterns or opinionated libraries.
+Lightweight, data-driven drag-and-drop for vanilla JS and any framework. Full control over UX
+without opinionated component patterns.
 
-This document provides practical examples of using the library in both vanilla JavaScript and React
-applications.
+**Live demo:** [itsjavi.com/dnd-manager](https://itsjavi.com/dnd-manager) · **Source:**
+[demo/](demo/) in this repo · **LLM-optimized docs:** [llms.md](llms.md)
+
+---
 
 ## Table of Contents
 
-1. [Installation](#installation)
-2. [Clone Preview Helper](#clone-preview-helper)
-3. [Vanilla JS Example](#vanilla-js-example)
-4. [Vanilla JS Example with multiple managers](#vanilla-js-example-with-multiple-managers)
-5. [React Example](#react-example)
-6. [Dynamic drag ability (state or permissions)](#dynamic-drag-ability-state-or-permissions)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Clone preview helper](#clone-preview-helper)
+- [Vanilla JS](#vanilla-js)
+- [React](#react)
+- [Multiple managers](#multiple-managers)
+- [Dynamic drag ability](#dynamic-drag-ability)
+- [API overview](#api-overview)
 
 ---
 
@@ -22,1074 +25,262 @@ applications.
 
 ```bash
 pnpm add dnd-manager
-```
-
-Or with npm/yarn:
-
-```bash
-npm install dnd-manager
-yarn add dnd-manager
+# or: npm install dnd-manager
 ```
 
 ---
 
-## Clone Preview Helper
+## Quick start
 
-Use `new DragPreviewController()` to get a clone of the dragged element that follows the cursor with
-`position: fixed`, `pointer-events: none`, and transform-based movement.
-
-```typescript
-import {
-  DragPreviewController,
-  DragDropManager,
-  type DragDropCallbacks,
-  type DragEndResult,
-  type PointerPosition,
-} from 'dnd-manager'
-
-type Item = { index: number }
-type Position = { index: number }
-
-const preview = new DragPreviewController({
-  zIndex: 9999,
-  opacity: 0.95,
-  className: 'drop-shadow-xl',
-})
-
-const callbacks: DragDropCallbacks<Item, Position> = {
-  getItemPosition: (element) => {
-    const raw = element.dataset.index
-    if (!raw) return null
-    const index = Number.parseInt(raw, 10)
-    return Number.isFinite(index) ? { index } : null
-  },
-
-  getItemData: (_element, pos) => ({ index: pos.index }),
-
-  onDragStart: (element) => {
-    preview.startFromElement(element)
-  },
-
-  onDragMove: (pos: PointerPosition) => {
-    preview.moveToPointer(pos)
-  },
-
-  onDragEnd: (result) => {
-    // result is DragEndResult<Item, Position> | null: drop info when dropped on valid target, null when cancelled
-    preview.stop()
-  },
-}
-
-const manager = new DragDropManager<Item, Position>(
-  '#container',
-  {
-    draggableKind: 'ITEM',
-    droppableKind: 'ITEM',
-  },
-  callbacks,
-)
-
-// Important cleanup for unmount/page teardown.
-function cleanup() {
-  preview.destroy()
-  manager.destroy()
-}
-```
-
-This helper uses the clone-in-`document.body` pattern to avoid drift in scrolled containers and
-keeps cursor tracking smooth via transform updates.
-
----
-
-## Vanilla JS Example
-
-This example creates a draggable grid with cells that can be reordered. Clicking a cell logs its
-data to the console, and dragging shows a preview element following the cursor.
-
-**HTML:**
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vanilla JS DragDrop Grid</title>
-    <style>
-      body {
-        margin: 0;
-        padding: 20px;
-        font-family:
-          system-ui,
-          -apple-system,
-          sans-serif;
-        background: #f9fafb;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(3, 120px);
-        gap: 8px;
-        padding: 20px;
-      }
-
-      .cell {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        border-radius: 8px;
-        padding: 20px;
-        min-height: 80px;
-        transition:
-          transform 0.2s,
-          opacity 0.2s,
-          box-shadow 0.2s;
-        user-select: none;
-        touch-action: none;
-      }
-
-      .cell:not([data-empty]) {
-        color: white;
-        cursor: grab;
-      }
-
-      .cell[data-empty] {
-        background: #f3f4f6;
-        border: 2px dashed #d1d5db;
-      }
-
-      /* Dragging states */
-      .cell[data-dragging='true'] {
-        opacity: 0.4;
-        cursor: grabbing !important;
-      }
-
-      .cell[data-hovered='true'] {
-        transform: scale(1.05);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
-      }
-
-      /* Drag preview */
-      #drag-preview {
-        position: fixed;
-        pointer-events: none;
-        z-index: 9999;
-        opacity: 0;
-        transform: translate(-50%, -50%);
-        transition: opacity 0.2s;
-        padding: 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 600;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Vanilla JS Drag & Drop Grid</h1>
-    <p>Drag cells to reorder, click to log to console</p>
-
-    <div id="grid-container" class="grid">
-      <!-- Row 0 -->
-      <div
-        class="cell"
-        data-kind="cell"
-        data-row="0"
-        data-col="0"
-        data-item-id="1"
-        data-name="Item 1"
-        style="background: #ef4444"
-      >
-        Item 1
-      </div>
-      <div
-        class="cell"
-        data-kind="cell"
-        data-row="0"
-        data-col="1"
-        data-item-id="2"
-        data-name="Item 2"
-        style="background: #3b82f6"
-      >
-        Item 2
-      </div>
-      <div
-        class="cell"
-        data-kind="cell"
-        data-row="0"
-        data-col="2"
-        data-item-id="3"
-        data-name="Item 3"
-        style="background: #10b981"
-      >
-        Item 3
-      </div>
-
-      <!-- Row 1 -->
-      <div
-        class="cell"
-        data-kind="cell"
-        data-row="1"
-        data-col="0"
-        data-item-id="4"
-        data-name="Item 4"
-        style="background: #f59e0b"
-      >
-        Item 4
-      </div>
-      <div class="cell" data-kind="cell" data-row="1" data-col="1" data-empty></div>
-      <div
-        class="cell"
-        data-kind="cell"
-        data-row="1"
-        data-col="2"
-        data-item-id="5"
-        data-name="Item 5"
-        style="background: #8b5cf6"
-      >
-        Item 5
-      </div>
-
-      <!-- Row 2 -->
-      <div
-        class="cell"
-        data-kind="cell"
-        data-row="2"
-        data-col="0"
-        data-item-id="6"
-        data-name="Item 6"
-        style="background: #ec4899"
-      >
-        Item 6
-      </div>
-      <div
-        class="cell"
-        data-kind="cell"
-        data-row="2"
-        data-col="1"
-        data-item-id="7"
-        data-name="Item 7"
-        style="background: #14b8a6"
-      >
-        Item 7
-      </div>
-      <div class="cell" data-kind="cell" data-row="2" data-col="2" data-empty></div>
-    </div>
-
-    <!-- Drag preview element -->
-    <div id="drag-preview"></div>
-
-    <script type="module" src="./app.ts"></script>
-  </body>
-</html>
-```
-
-**TypeScript (app.ts):**
+1. Mark draggable/droppable elements with `data-kind` (e.g. `data-kind="cell"`).
+2. Add position data (e.g. `data-row`, `data-col` for a grid).
+3. Create a `DragDropManager` with callbacks that read position/data and handle drag/drop.
 
 ```typescript
 import { DragDropManager, type DragDropCallbacks } from 'dnd-manager'
 
-// Types
-type GridItem = {
-  id: string
-  name: string
-  color: string
+type Item = { id: string; name: string }
+type Position = { row: number; col: number }
+
+const callbacks: DragDropCallbacks<Item, Position> = {
+  getItemPosition: (el) => {
+    const row = el.dataset.row,
+      col = el.dataset.col
+    return row != null && col != null ? { row: +row, col: +col } : null
+  },
+  getItemData: (el, pos) => ({ id: el.dataset.itemId ?? '', name: el.dataset.name ?? '' }),
+  onDrop: (from, to, item) => {
+    /* swap/update DOM or state */
+  },
+  onDragEnd: (result) => {
+    /* result or null; cleanup preview etc. */
+  },
 }
 
-type GridPosition = {
-  row: number
-  col: number
+const manager = new DragDropManager<Item, Position>(
+  document.querySelector('#container'),
+  { draggableKind: 'cell', droppableKind: 'cell' },
+  callbacks,
+)
+
+// On teardown:
+manager.destroy()
+```
+
+Elements with `data-empty` are not draggable. Use `onDragStart` / `onDragMove` to show a preview;
+use `onDragEnd(result)` for cleanup and optional reordering (see below).
+
+---
+
+## Clone preview helper
+
+`DragPreviewController` gives a clone of the dragged element that follows the cursor
+(`position: fixed`, `pointer-events: none`). Reduces drift in scrolled containers.
+
+```typescript
+import { DragPreviewController, DragDropManager, type DragDropCallbacks } from 'dnd-manager'
+
+const preview = new DragPreviewController({ zIndex: 9999, opacity: 0.95 })
+
+const callbacks: DragDropCallbacks<Item, Position> = {
+  getItemPosition: (el) => ({ index: Number(el.dataset.index) }),
+  getItemData: (el, pos) => ({ index: pos.index }),
+  onDragStart: (element) => preview.startFromElement(element),
+  onDragMove: (pos) => preview.moveToPointer(pos),
+  onDragEnd: () => preview.stop(),
 }
 
-// Initialize
-function initDragDropGrid(): void {
-  const container = document.getElementById('grid-container')
-  const preview = document.getElementById('drag-preview')
+const manager = new DragDropManager(
+  container,
+  { draggableKind: 'ITEM', droppableKind: 'ITEM' },
+  callbacks,
+)
 
-  if (!container || !preview) return
+// Cleanup:
+preview.destroy()
+manager.destroy()
+```
 
-  // Setup DragDropManager callbacks
-  const callbacks: DragDropCallbacks<GridItem, GridPosition> = {
-    getItemPosition: (element, kind) => {
-      const row = element.dataset.row
-      const col = element.dataset.col
-      if (row === undefined || col === undefined) return null
+---
 
-      return {
-        row: parseInt(row, 10),
-        col: parseInt(col, 10),
-      }
-    },
+## Vanilla JS
 
-    getItemData: (element, position) => {
-      const itemId = element.dataset.itemId
-      const name = element.dataset.name
-      const color = element.style.background
+Use a container of elements with `data-kind`, `data-row`, `data-col`, and item fields
+(`data-item-id`, `data-name`, etc.). In callbacks:
 
-      if (!itemId || !name || !color) return null
+- **getItemPosition** — parse position from data attributes.
+- **getItemData** — return item payload (e.g. id, name, color).
+- **onDragStart** — show preview (e.g. copy size/style to a fixed preview element).
+- **onDragMove** — update preview position (`left`/`top` or transform).
+- **onDrop** — swap/update DOM (or state) using source/target positions and `sourceItem`.
+- **onDragEnd(result)** — `result` is `{ sourcePosition, targetPosition, sourceItem }` on valid
+  drop, or `null` when cancelled. Use for cleanup (hide preview) and optionally do reordering here
+  instead of in `onDrop`.
+- **onClick** — handle click (e.g. log or select).
 
-      return {
-        id: itemId,
-        name: name,
-        color: color,
-      }
-    },
+Full grid markup and CSS are in the [demo app](demo/) (see `GridDemo` and styles). Minimal markup
+pattern:
 
-    onDragStart: (element, position, item) => {
-      console.log('🚀 Drag started:', item)
-
-      // Copy element dimensions and styles to preview
-      const rect = element.getBoundingClientRect()
-      preview.textContent = item.name
-      preview.style.background = item.color
-      preview.style.width = `${rect.width}px`
-      preview.style.height = `${rect.height}px`
-      preview.style.opacity = '0.9'
-    },
-
-    onDragMove: (pos, hoveredElement) => {
-      // Update preview position
-      preview.style.left = `${pos.x}px`
-      preview.style.top = `${pos.y}px`
-    },
-
-    onDrop: (sourcePos, targetPos, sourceItem) => {
-      console.log('📦 Dropped:', {
-        from: sourcePos,
-        to: targetPos,
-        item: sourceItem,
-      })
-
-      // Get source and target elements
-      const sourceElement = container.querySelector(
-        `[data-row="${sourcePos.row}"][data-col="${sourcePos.col}"]`,
-      ) as HTMLElement
-      const targetElement = container.querySelector(
-        `[data-row="${targetPos.row}"][data-col="${targetPos.col}"]`,
-      ) as HTMLElement
-
-      if (!sourceElement || !targetElement) return
-
-      // Swap element contents and data attributes
-      const tempContent = sourceElement.innerHTML
-      const tempId = sourceElement.dataset.itemId
-      const tempName = sourceElement.dataset.name
-      const tempColor = sourceElement.style.background
-      const tempEmpty = sourceElement.dataset.empty
-
-      // Update source with target data
-      sourceElement.innerHTML = targetElement.innerHTML
-      sourceElement.dataset.itemId = targetElement.dataset.itemId || ''
-      sourceElement.dataset.name = targetElement.dataset.name || ''
-      sourceElement.style.background = targetElement.style.background
-      if (targetElement.dataset.empty !== undefined) {
-        sourceElement.dataset.empty = ''
-      } else {
-        delete sourceElement.dataset.empty
-      }
-
-      // Update target with source data
-      targetElement.innerHTML = tempContent
-      targetElement.dataset.itemId = tempId || ''
-      targetElement.dataset.name = tempName || ''
-      targetElement.style.background = tempColor
-      if (tempEmpty !== undefined) {
-        targetElement.dataset.empty = ''
-      } else {
-        delete targetElement.dataset.empty
-      }
-    },
-
-    onDragEnd: (result) => {
-      // result is { sourcePosition, targetPosition, sourceItem } when dropped on valid target, null when cancelled
-      preview.style.opacity = '0'
-    },
-
-    onClick: (element, position) => {
-      const itemId = element.dataset.itemId
-      const name = element.dataset.name
-      const color = element.style.background
-
-      if (itemId && name) {
-        console.log('👆 Clicked:', { id: itemId, name, color })
-      }
-    },
-  }
-
-  // Create DragDropManager instance
-  const dragDropManager = new DragDropManager<GridItem, GridPosition>(
-    container,
-    {
-      draggableKind: 'cell',
-      droppableKind: 'cell',
-      dragThreshold: 10,
-      clickThreshold: 10,
-      scrollThreshold: 100,
-      scrollSpeed: 10,
-      cancelOnEscape: true,
-      cancelOnPointerLeave: true,
-    },
-    callbacks,
-  )
-
-  // Cleanup on page unload
-  window.addEventListener('beforeunload', () => {
-    dragDropManager.destroy()
-  })
-}
-
-// Start when DOM is ready
-document.addEventListener('DOMContentLoaded', initDragDropGrid)
+```html
+<div id="grid-container">
+  <div class="cell" data-kind="cell" data-row="0" data-col="0" data-item-id="1" data-name="Item 1">
+    Item 1
+  </div>
+  <!-- ... more cells; use data-empty on empty slots -->
+</div>
+<div id="drag-preview"></div>
 ```
 
 ### Reordering in `onDragEnd`
 
-You can perform reordering in **`onDragEnd(result)`** instead of (or in addition to) `onDrop`.  
-`onDragEnd` is called once when the drag ends. Its argument is:
-
-- **`result`** = `{ sourcePosition, targetPosition, sourceItem }` when the item was dropped on a
-  valid target
-- **`result`** = `null` when the drag was cancelled (Escape, pointer leave) or dropped on an invalid
-  target
-
-Example: update the DOM by reordering elements in `onDragEnd` using the final drop position and the
-dragged item's data:
+You can do all post-drag work in `onDragEnd` so cleanup and DOM/state updates stay in one place:
 
 ```typescript
-import { DragDropManager, type DragDropCallbacks, type DragEndResult } from 'dnd-manager'
-
-// ... getItemPosition, getItemData, onDragStart, onDragMove, etc.
-
-onDrop: (sourcePos, targetPos, sourceItem) => {
-  console.log('Dropped', sourcePos, '->', targetPos)
-},
-
 onDragEnd: (result) => {
-  if (result === null) {
-    // Drag was cancelled or dropped on invalid target — no reorder
-    return
-  }
+  if (result === null) return
   const { sourcePosition, targetPosition, sourceItem } = result
-  // Reorder DOM (or update React state) using final drop position and dragged item data
-  const sourceEl = container.querySelector(
-    `[data-row="${sourcePosition.row}"][data-col="${sourcePosition.col}"]`,
-  ) as HTMLElement
-  const targetEl = container.querySelector(
-    `[data-row="${targetPosition.row}"][data-col="${targetPosition.col}"]`,
-  ) as HTMLElement
-  if (sourceEl && targetEl) {
-    // Swap contents/data or move nodes (same logic as in the full Vanilla JS example above)
-    swapElementContents(sourceEl, targetEl, sourceItem)
-  }
-  // Cleanup (e.g. hide preview)
+  // Update DOM or state (e.g. swap elements), then cleanup
+  swapElements(container, sourcePosition, targetPosition, sourceItem)
   preview.style.opacity = '0'
-},
+}
 ```
-
-Using `onDragEnd(result)` for reordering keeps all post-drag logic (DOM/state update + cleanup) in
-one place and gives you the same parameters as `onDrop`.
 
 ---
 
-## Vanilla JS Example with multiple managers
+## React
 
-The library also supports dragging between separate manager instances.
-
-You can create two independent `DragDropManager` instances (one per container) and move items
-between them when the following conditions are met:
-
-- both containers use compatible `data-kind` values
-- `getItemPosition()` includes enough identity to locate an item globally (for example,
-  `containerId + itemId`)
-- your `onDrop()` or `onDragEnd(result)` updates shared app state (or both DOM containers) using
-  source and target positions
-
-The `onDrop` hook is invoked on the manager where the drag started. **`onDragEnd(result)`** is
-called after every drag (success or cancel). It receives a **drop result** when the item was dropped
-on a valid target (`{ sourcePosition, targetPosition, sourceItem }`), or `null` when the drag was
-cancelled or dropped on an invalid target. You can perform reordering in either `onDrop` or
-`onDragEnd`: use `onDragEnd(result)` when you want a single place to update the DOM/state and run
-cleanup (e.g. hide preview) using the same `result` data.
+Create the manager inside `useEffect` and clean up on unmount. Use state for grid data and preview;
+update state in `onDrop` (or `onDragEnd`). Keep `getItemData` reading from current state so the
+manager always has up-to-date item data.
 
 ```typescript
-import { DragDropManager, type DragDropCallbacks } from 'dnd-manager'
+useEffect(() => {
+  if (!containerRef.current) return
+  const callbacks: DragDropCallbacks<GridItem, GridPosition> = {
+    getItemPosition: (el) => ({ row: +el.dataset.row!, col: +el.dataset.col! }),
+    getItemData: (_, pos) => gridData[pos.row][pos.col],
+    onDragStart: (el, _, item) => setDragPreview({ item, rect: el.getBoundingClientRect() }),
+    onDragMove: (pos) => setDragPreview((p) => (p ? { ...p, position: pos } : p)),
+    onDrop: (from, to, item) => setGridData((prev) => swap(prev, from, to, item)),
+    onDragEnd: () => setDragPreview(null),
+  }
+  const manager = new DragDropManager(
+    containerRef,
+    { draggableKind: 'cell', droppableKind: 'cell' },
+    callbacks,
+  )
+  return () => manager.destroy()
+}, [gridData])
+```
 
-type Item = { id: string; label: string }
-type Position = { containerId: 'left' | 'right'; itemId: string }
+Render cells with `data-kind`, `data-row`, `data-col`, and item attributes; render a fixed-position
+preview from `dragPreview`. Full component and CSS: [demo app](demo/).
 
-const left = document.querySelector<HTMLElement>('#left-grid')
-const right = document.querySelector<HTMLElement>('#right-grid')
+---
 
-if (!left || !right) {
-  throw new Error('Missing containers')
-}
+## Multiple managers
 
-const containers: Record<Position['containerId'], HTMLElement> = {
-  left,
-  right,
-}
+Use two (or more) `DragDropManager` instances with **compatible `data-kind`** and a **shared
+callbacks** object. Ensure positions identify items globally (e.g. `{ containerId, itemId }`) so
+`onDrop` / `onDragEnd` can update both containers or shared state.
 
-const getItemPosition: DragDropCallbacks<Item, Position>['getItemPosition'] = (element) => {
-  const containerId = element.closest<HTMLElement>('[data-container]')?.dataset.container as
-    | Position['containerId']
-    | undefined
-  const itemId = element.dataset.id
-  if (!containerId || !itemId) return null
+`onDrop` runs on the manager where the drag **started**. `onDragEnd(result)` runs for every drag;
+`result` is the drop payload or `null`.
 
-  return { containerId, itemId }
-}
-
+```typescript
 const callbacks: DragDropCallbacks<Item, Position> = {
-  getItemData: (element) => ({
-    id: element.dataset.id ?? '',
-    label: element.dataset.label ?? '',
+  getItemPosition: (el) => ({
+    containerId: el.closest('[data-container]')?.dataset.container as 'left' | 'right',
+    itemId: el.dataset.id!,
   }),
-  getItemPosition,
+  getItemData: (el) => ({ id: el.dataset.id!, label: el.dataset.label! }),
   onDrop: (sourcePos, targetPos, sourceItem) => {
-    const source = containers[sourcePos.containerId].querySelector<HTMLElement>(
-      `[data-id="${sourcePos.itemId}"]`,
-    )
-    const target = containers[targetPos.containerId].querySelector<HTMLElement>(
-      `[data-id="${targetPos.itemId}"]`,
-    )
-    if (!source || !target) return
-
-    const targetLabel = target.dataset.label ?? ''
-    source.dataset.label = targetLabel
-    source.textContent = targetLabel
-    target.dataset.label = sourceItem.label
-    target.textContent = sourceItem.label
+    // Update DOM or state for both source and target containers
   },
 }
 
-const leftManager = new DragDropManager<Item, Position>(
-  left,
+const leftManager = new DragDropManager(
+  leftEl,
   { draggableKind: 'cell', droppableKind: 'cell' },
   callbacks,
 )
-
-const rightManager = new DragDropManager<Item, Position>(
-  right,
+const rightManager = new DragDropManager(
+  rightEl,
   { draggableKind: 'cell', droppableKind: 'cell' },
   callbacks,
 )
-
-// Cleanup
-window.addEventListener('beforeunload', () => {
-  leftManager.destroy()
-  rightManager.destroy()
-})
+// Cleanup: destroy both
 ```
 
 ---
 
-## React Example
+## Dynamic drag ability
 
-This example shows the same draggable grid implemented as a React component with TypeScript.
+Control whether an item can be dragged (e.g. by permissions or locked state) **without
+reinitializing** the manager.
+
+- **`canDrag(element, position)`** — optional callback; called on every pointer down. Return `true`
+  to allow drag, `false` to block.
+- Keep the **callbacks object stable** and either:
+  - **Mutate** `callbacks.canDrag` when permissions/state change (vanilla), or
+  - Have **`canDrag` read from a ref or store** you update (e.g. in React) so the same manager
+    instance always sees current state.
+
+**Vanilla:** update `canDrag` when state changes:
 
 ```typescript
-import { useEffect, useRef, useState } from 'react'
-import { DragDropManager, type DragDropCallbacks } from 'dnd-manager'
-
-// Types
-type GridItem = {
-  id: string
-  name: string
-  color: string
+const callbacks = { getItemPosition, getItemData, canDrag: () => true }
+function setCanDrag(fn: (el: HTMLElement, pos: Position) => boolean) {
+  callbacks.canDrag = fn
 }
-
-type GridPosition = {
-  row: number
-  col: number
-}
-
-// Initial data
-const INITIAL_DATA: (GridItem | null)[][] = [
-  [
-    { id: '1', name: 'Item 1', color: '#ef4444' },
-    { id: '2', name: 'Item 2', color: '#3b82f6' },
-    { id: '3', name: 'Item 3', color: '#10b981' },
-  ],
-  [
-    { id: '4', name: 'Item 4', color: '#f59e0b' },
-    null,
-    { id: '5', name: 'Item 5', color: '#8b5cf6' },
-  ],
-  [
-    { id: '6', name: 'Item 6', color: '#ec4899' },
-    { id: '7', name: 'Item 7', color: '#14b8a6' },
-    null,
-  ],
-]
-
-// Cell component
-type CellProps = {
-  item: GridItem | null
-  row: number
-  col: number
-} & React.ComponentProps<'div'>
-
-function GridCell({ item, row, col, ...props }: CellProps) {
-  if (item) {
-    return (
-      <div
-        data-kind="cell"
-        data-row={row}
-        data-col={col}
-        data-item-id={item.id}
-        className="grid-cell grid-cell--filled"
-        style={{
-          background: item.color,
-        }}
-        {...props}
-      >
-        {item.name}
-      </div>
-    )
-  }
-
-  return (
-    <div
-      data-kind="cell"
-      data-row={row}
-      data-col={col}
-      data-empty="true"
-      className="grid-cell grid-cell--empty"
-      {...props}
-    />
-  )
-}
-
-// Drag preview component
-type DragPreviewProps = {
-  item: GridItem | null
-  position: { x: number; y: number } | null
-  width?: number
-  height?: number
-}
-
-function DragPreview({ item, position, width, height }: DragPreviewProps) {
-  if (!item || !position) return null
-
-  return (
-    <div
-      className="drag-preview"
-      style={{
-        left: position.x,
-        top: position.y,
-        background: item.color,
-        width: width ? `${width}px` : undefined,
-        height: height ? `${height}px` : undefined,
-      }}
-    >
-      {item.name}
-    </div>
-  )
-}
-
-// Main component
-export function DraggableGrid() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [gridData, setGridData] = useState<(GridItem | null)[][]>(INITIAL_DATA)
-  const [dragPreview, setDragPreview] = useState<{
-    item: GridItem | null
-    position: { x: number; y: number } | null
-    width?: number
-    height?: number
-  }>({ item: null, position: null })
-
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    // Setup callbacks
-    const callbacks: DragDropCallbacks<GridItem, GridPosition> = {
-      getItemPosition: (element, kind) => {
-        const row = element.dataset.row
-        const col = element.dataset.col
-        if (row === undefined || col === undefined) return null
-
-        return {
-          row: parseInt(row, 10),
-          col: parseInt(col, 10),
-        }
-      },
-
-      getItemData: (element, position) => {
-        return gridData[position.row][position.col]
-      },
-
-      onDragStart: (element, position, item) => {
-        console.log('🚀 Drag started:', item)
-
-        // Store element dimensions for preview
-        const rect = element.getBoundingClientRect()
-        setDragPreview({
-          item,
-          position: null,
-          width: rect.width,
-          height: rect.height,
-        })
-      },
-
-      onDragMove: (pos, hoveredElement) => {
-        setDragPreview((prev) => ({
-          ...prev,
-          position: pos,
-        }))
-      },
-
-      onDrop: (sourcePos, targetPos, sourceItem) => {
-        console.log('📦 Dropped:', {
-          from: sourcePos,
-          to: targetPos,
-          item: sourceItem,
-        })
-
-        // Swap items
-        setGridData((prevData) => {
-          const newData = prevData.map((row) => [...row])
-          const targetItem = newData[targetPos.row][targetPos.col]
-          newData[targetPos.row][targetPos.col] = sourceItem
-          newData[sourcePos.row][sourcePos.col] = targetItem
-          return newData
-        })
-      },
-
-      onDragEnd: (result) => {
-        // result is drop info when dropped on valid target, null when cancelled
-        setDragPreview({ item: null, position: null, width: undefined, height: undefined })
-      },
-
-      onClick: (element, position) => {
-        const item = gridData[position.row][position.col]
-        if (item) {
-          console.log('👆 Clicked:', item)
-        }
-      },
-    }
-
-    // Create manager
-    const manager = new DragDropManager<GridItem, GridPosition>(
-      containerRef,
-      {
-        draggableKind: 'cell',
-        droppableKind: 'cell',
-        dragThreshold: 10,
-        clickThreshold: 10,
-        scrollThreshold: 100,
-        scrollSpeed: 10,
-        cancelOnEscape: true,
-        cancelOnPointerLeave: true,
-      },
-      callbacks,
-    )
-
-    // Cleanup
-    return () => {
-      manager.destroy()
-    }
-  }, [gridData])
-
-  return (
-    <div className="draggable-grid-container">
-      <h1>React Drag & Drop Grid</h1>
-      <p>Drag cells to reorder, click to log to console</p>
-
-      <div ref={containerRef} className="grid">
-        {gridData.map((row, rowIndex) =>
-          row.map((item, colIndex) => (
-            <GridCell key={`${rowIndex}-${colIndex}`} item={item} row={rowIndex} col={colIndex} />
-          )),
-        )}
-      </div>
-
-      <DragPreview
-        item={dragPreview.item}
-        position={dragPreview.position}
-        width={dragPreview.width}
-        height={dragPreview.height}
-      />
-    </div>
-  )
-}
+setCanDrag((el, pos) => !getItemData(el, pos)?.locked && userCanEdit)
+const manager = new DragDropManager(container, config, callbacks)
 ```
 
-**CSS (Tailwind or plain CSS):**
-
-```css
-/* Container */
-.draggable-grid-container {
-  padding: 20px;
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
-}
-
-/* Grid */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(3, 120px);
-  gap: 8px;
-  padding: 20px;
-}
-
-/* Grid cells */
-.grid-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  border-radius: 8px;
-  transition:
-    transform 0.2s,
-    opacity 0.2s,
-    box-shadow 0.2s;
-  user-select: none;
-  touch-action: none;
-}
-
-.grid-cell--filled {
-  padding: 20px;
-  color: white;
-  cursor: grab;
-  min-height: 80px;
-}
-
-.grid-cell--empty {
-  background: #f3f4f6;
-  border: 2px dashed #d1d5db;
-  min-height: 80px;
-}
-
-/* Dragging state */
-.grid-cell[data-dragging='true'] {
-  opacity: 0.4;
-  cursor: grabbing !important;
-}
-
-/* Hover state */
-.grid-cell[data-hovered='true'] {
-  transform: scale(1.05);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
-}
-
-/* Drag preview */
-.drag-preview {
-  position: fixed;
-  pointer-events: none;
-  z-index: 9999;
-  transform: translate(-50%, -50%);
-  padding: 20px;
-  border-radius: 8px;
-  color: white;
-  font-weight: 600;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-  opacity: 0.9;
-}
-```
-
-**With Tailwind CSS:**
-
-```typescript
-// Update cell component to use Tailwind classes
-function GridCell({ item, row, col, ...props }: CellProps) {
-  if (item) {
-    return (
-      <div
-        data-kind="cell"
-        data-row={row}
-        data-col={col}
-        data-item-id={item.id}
-        className="flex items-center justify-center p-5 rounded-lg cursor-grab
-                   font-semibold text-white transition-all duration-200
-                   data-[dragging=true]:opacity-40 data-[dragging=true]:cursor-grabbing
-                   data-[hovered=true]:scale-105 data-[hovered=true]:ring-4
-                   data-[hovered=true]:ring-blue-500/50"
-        style={{ background: item.color }}
-        {...props}
-      >
-        {item.name}
-      </div>
-    )
-  }
-
-  return (
-    <div
-      data-kind="cell"
-      data-row={row}
-      data-col={col}
-      data-empty="true"
-      className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg min-h-[80px]"
-      {...props}
-    />
-  )
-}
-
-// Drag preview with Tailwind
-function DragPreview({ item, position, width, height }: DragPreviewProps) {
-  if (!item || !position) return null
-
-  return (
-    <div
-      className="fixed pointer-events-none z-[9999] -translate-x-1/2 -translate-y-1/2
-                 p-5 rounded-lg text-white font-semibold shadow-2xl opacity-90"
-      style={{
-        left: position.x,
-        top: position.y,
-        background: item.color,
-        width: width ? `${width}px` : undefined,
-        height: height ? `${height}px` : undefined,
-      }}
-    >
-      {item.name}
-    </div>
-  )
-}
-```
+**React:** use a ref that always holds latest state; `canDrag` reads from it so the manager doesn’t
+need to be recreated when state changes.
 
 ---
 
-## Dynamic drag ability (state or permissions)
+## API overview
 
-You can make drag ability depend on current state or user permissions **without reinitializing**
-`DragDropManager`. The manager does not need to be recreated when state or permissions change.
+### Callbacks
 
-### How it works
+| Callback                                             | Purpose                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getItemPosition(element, kind)`                     | Return position object from DOM (e.g. `{ row, col }`) or `null`.                                                                              |
+| `getItemData(element, position)`                     | Return item data for the element at `position`.                                                                                               |
+| `canDrag(element, position)`                         | Optional. Return `false` to block drag on this pointer down.                                                                                  |
+| `onDragStart(element, position, item)`               | Show preview, update source appearance.                                                                                                       |
+| `onDragMove(pointerPosition, hoveredElement)`        | Update preview position.                                                                                                                      |
+| `onDrop(sourcePosition, targetPosition, sourceItem)` | Called when dropped on valid target; update DOM/state.                                                                                        |
+| `onDragEnd(result)`                                  | Always called when drag ends. `result` = `{ sourcePosition, targetPosition, sourceItem }` or `null`. Use for cleanup and optional reordering. |
+| `onClick(element, position)`                         | Click/tap on draggable element.                                                                                                               |
 
-- The optional **`canDrag`** callback is invoked **on every pointer down** on a draggable element,
-  before a drag is started. Return `true` to allow the drag, `false` to block it.
-- Because `canDrag` is evaluated at interaction time, it can read the latest state or permissions.
-- To avoid reinitializing the manager when state changes, keep the **callbacks reference stable**
-  and have `canDrag` read from a **live source** (e.g. a ref or a mutable object) that you update
-  when state or permissions change. The manager keeps a reference to the callbacks object and calls
-  `canDrag` each time the user tries to drag, so it will always see the current value.
+### Manager config
 
-### Pattern: stable callbacks, live state
+| Option                            | Description                                                     |
+| --------------------------------- | --------------------------------------------------------------- |
+| `draggableKind` / `droppableKind` | String or string[] to match `data-kind`.                        |
+| `dragThreshold`                   | Pixels before drag starts (default 10).                         |
+| `clickThreshold`                  | Max movement to still count as click (default 10).              |
+| `scrollThreshold`                 | Distance from viewport edge to start auto-scroll (default 100). |
+| `scrollSpeed`                     | Auto-scroll speed (default 10).                                 |
+| `cancelOnEscape`                  | Cancel drag on Escape (default true).                           |
+| `cancelOnPointerLeave`            | Cancel when pointer leaves window (default true).               |
 
-**Vanilla JS** — use a mutable callbacks object and update `canDrag` when state or permissions
-change; the same manager instance keeps using the updated function:
+### Conventions
 
-```typescript
-type Item = { id: string; locked?: boolean }
-type Position = { index: number }
+- **`data-kind`** — identifies draggable/droppable type; must match config.
+- **`data-empty`** — elements with this attribute are not draggable.
+- **`data-dragging`** — set to `"true"` on the source element during drag; removed on end/cancel.
+- **`data-hovered`** — set to `"true"` on the hovered droppable; removed when pointer leaves or drag
+  ends.
+- **Preview** — implement in `onDragStart` / `onDragMove` / `onDragEnd`, or use
+  `DragPreviewController`.
 
-const callbacks: DragDropCallbacks<Item, Position> = {
-  getItemPosition: (el) => ({ index: Number(el.dataset.index) }),
-  getItemData: (el, pos) => ({ id: String(el.dataset.id), locked: el.dataset.locked === 'true' }),
-  canDrag: () => true, // replaced below
-}
+### Notes
 
-// When state or permissions change, update only the predicate; no need to recreate the manager.
-function updateDragPermission(canDragNow: (element: HTMLElement, position: Position) => boolean) {
-  callbacks.canDrag = canDragNow
-}
-
-// Example: allow drag only if user has permission and item is not locked
-let userCanEdit = true
-updateDragPermission((element, position) => {
-  const item = callbacks.getItemData?.(element, position)
-  return Boolean(userCanEdit && item && !item.locked)
-})
-
-const manager = new DragDropManager<Item, Position>(
-  container,
-  { draggableKind: 'item', droppableKind: 'item' },
-  callbacks,
-)
-
-// Later: user logs out or permissions change
-userCanEdit = false
-updateDragPermission((element, position) => {
-  const item = callbacks.getItemData?.(element, position)
-  return Boolean(userCanEdit && item && !item.locked)
-})
-// Manager is unchanged; next pointer down will use the new canDrag.
-```
-
-**React** — keep callbacks stable with a ref that holds the latest state so `canDrag` always reads
-current state without changing the callbacks reference (and thus without triggering manager
-re-creation in effects that depend on `callbacks`):
-
-```tsx
-const [items, setItems] = useState<Item[]>([])
-const itemsRef = useRef(items)
-itemsRef.current = items
-
-const callbacksRef = useRef<DragDropCallbacks<Item, Position>>({
-  getItemPosition: (el) => ({ index: Number(el.dataset.index) }),
-  getItemData: (el, pos) => itemsRef.current[pos.index] ?? null,
-  canDrag: (element, position) => {
-    const item = itemsRef.current[position.index]
-    const hasPermission = usePermissionsStore.getState().canEdit
-    return Boolean(hasPermission && item && !item.locked)
-  },
-  // ... onDragStart, onDrop, etc.
-})
-const callbacks = callbacksRef.current
-
-// useDragDropManager(containerRef, config, callbacks) — callbacks reference is stable;
-// canDrag reads from itemsRef and permission store, so drag ability updates without reinit.
-```
-
-### Summary
-
-| Goal                                                         | Approach                                                                                                                                                                                               |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Drag allowed only for some items or when user has permission | Implement `canDrag(element, position)` and return `true`/`false` based on item state or permission checks.                                                                                             |
-| Change drag ability over time without reinitializing         | Keep one `DragDropManager` instance; use a stable callbacks object and either (1) mutate `callbacks.canDrag` when state/permissions change, or (2) have `canDrag` read from a ref or store you update. |
-| Per-pointer-down evaluation                                  | No extra API: `canDrag` is already invoked on every pointer down, so it naturally reflects current state.                                                                                              |
-
----
-
-## Covered Features
-
-### Both Examples Include:
-
-1. **Grid Layout** - 3x3 grid with draggable cells
-2. **Click Detection** - Logs item data to console on click
-3. **Drag Preview** - Visual feedback following cursor during drag, matching original element size
-4. **Swap Behavior** - Items swap positions on drop
-5. **Empty Cells** - Non-draggable placeholder cells
-6. **Visual Feedback** - Opacity changes, hover states, and scaling
-7. **TypeScript Types** - Full type safety with generics
-
-### DragDropManager Features Used:
-
-- `canDrag` - Optional callback `(element, position) => boolean`; evaluated on every pointer down so
-  drag ability can depend on current state or permissions without reinitializing the manager. See
-  [Dynamic drag ability (state or permissions)](#dynamic-drag-ability-state-or-permissions).
-- `data-empty` convention - Elements with `data-empty` are automatically treated as non-draggable
-- `getItemPosition` - Extracts grid coordinates from data attributes
-- `getItemData` - Retrieves item data from grid state
-- `onDragStart` - Shows preview and updates source appearance
-  - Uses `getBoundingClientRect()` to copy element dimensions to preview
-- `onDragMove` - Updates preview position in real-time
-- `onDrop` - Called when dropped on valid target; use for swapping/updating state
-- `onDragEnd(result)` - Called when drag ends (success or cancel). `result` is
-  `{ sourcePosition, targetPosition, sourceItem }` on valid drop, `null` otherwise. Use for
-  reordering DOM/state and cleanup (e.g. hide preview); see
-  [Reordering in onDragEnd](#reordering-in-ondragend)
-- `onClick` - Handles click/tap events
-
-### Configuration:
-
-- `draggableKind` / `droppableKind` - Accept `string` or `string[]` to match one or many kinds. Each
-  element should still expose a single `data-kind` value.
-- `dragThreshold: 10` - Prevents accidental drags
-- `clickThreshold: 10` - Distinguishes clicks from drags
-- `scrollThreshold: 100` - Auto-scroll near viewport edges
-- `scrollSpeed: 10` - Smooth scroll speed
-- `cancelOnEscape: true` - Cancels active drag when Escape is pressed
-- `cancelOnPointerLeave: true` - Cancels active drag if pointer leaves the window
-
----
-
-## Notes
-
-- **Performance**: The manager uses `requestAnimationFrame` for smooth updates at 60fps
-- **Mobile-Friendly**: Uses pointer events which work with touch, mouse, and pen
-- **Accessibility**: Uses data attributes that don't interfere with screen readers
-- **React Integration**: Manager is created in `useEffect` with proper cleanup
-- **State Management**: React example uses `useState` to trigger re-renders after drops
+- Uses `requestAnimationFrame` for 60fps updates; pointer events work with touch, mouse, and pen.
+- React: create manager in `useEffect`, depend on grid state if `getItemData` uses it, and destroy
+  on cleanup.
