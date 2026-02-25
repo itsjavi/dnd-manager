@@ -11,8 +11,9 @@ applications.
 
 1. [Installation](#installation)
 2. [Clone Preview Helper](#clone-preview-helper)
-3. [Vanilla JavaScript Example](#vanilla-javascript-example)
-4. [React Example](#react-example)
+3. [Vanilla JS Example](#vanilla-js-example)
+4. [Vanilla JS Example with multiple managers](#vanilla-js-example-with-multiple-managers)
+5. [React Example](#react-example)
 
 ---
 
@@ -97,7 +98,7 @@ keeps cursor tracking smooth via transform updates.
 
 ---
 
-## Vanilla JavaScript Example
+## Vanilla JS Example
 
 This example creates a draggable grid with cells that can be reordered. Clicking a cell logs its
 data to the console, and dragging shows a preview element following the cursor.
@@ -437,6 +438,94 @@ function initDragDropGrid(): void {
 
 // Start when DOM is ready
 document.addEventListener('DOMContentLoaded', initDragDropGrid)
+```
+
+---
+
+## Vanilla JS Example with multiple managers
+
+The library also supports dragging between separate manager instances.
+
+You can create two independent `DragDropManager` instances (one per container) and move items
+between them when the following conditions are met:
+
+- both containers use compatible `data-kind` values
+- `getItemPosition()` includes enough identity to locate an item globally (for example,
+  `containerId + itemId`)
+- your `onDrop()` updates shared app state (or both DOM containers) using source and target
+  positions
+
+The `onDrop` hook is invoked on the manager where the drag started. In practice, this works well for
+shared state updates because that callback still receives both source and target positions.
+
+```typescript
+import { DragDropManager, type DragDropCallbacks } from 'dnd-manager'
+
+type Item = { id: string; label: string }
+type Position = { containerId: 'left' | 'right'; itemId: string }
+
+const left = document.querySelector<HTMLElement>('#left-grid')
+const right = document.querySelector<HTMLElement>('#right-grid')
+
+if (!left || !right) {
+  throw new Error('Missing containers')
+}
+
+const containers: Record<Position['containerId'], HTMLElement> = {
+  left,
+  right,
+}
+
+const getItemPosition: DragDropCallbacks<Item, Position>['getItemPosition'] = (element) => {
+  const containerId = element.closest<HTMLElement>('[data-container]')?.dataset.container as
+    | Position['containerId']
+    | undefined
+  const itemId = element.dataset.id
+  if (!containerId || !itemId) return null
+
+  return { containerId, itemId }
+}
+
+const callbacks: DragDropCallbacks<Item, Position> = {
+  getItemData: (element) => ({
+    id: element.dataset.id ?? '',
+    label: element.dataset.label ?? '',
+  }),
+  getItemPosition,
+  onDrop: (sourcePos, targetPos, sourceItem) => {
+    const source = containers[sourcePos.containerId].querySelector<HTMLElement>(
+      `[data-id="${sourcePos.itemId}"]`,
+    )
+    const target = containers[targetPos.containerId].querySelector<HTMLElement>(
+      `[data-id="${targetPos.itemId}"]`,
+    )
+    if (!source || !target) return
+
+    const targetLabel = target.dataset.label ?? ''
+    source.dataset.label = targetLabel
+    source.textContent = targetLabel
+    target.dataset.label = sourceItem.label
+    target.textContent = sourceItem.label
+  },
+}
+
+const leftManager = new DragDropManager<Item, Position>(
+  left,
+  { draggableKind: 'cell', droppableKind: 'cell' },
+  callbacks,
+)
+
+const rightManager = new DragDropManager<Item, Position>(
+  right,
+  { draggableKind: 'cell', droppableKind: 'cell' },
+  callbacks,
+)
+
+// Cleanup
+window.addEventListener('beforeunload', () => {
+  leftManager.destroy()
+  rightManager.destroy()
+})
 ```
 
 ---

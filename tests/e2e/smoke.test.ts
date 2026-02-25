@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { page } from 'vitest/browser'
-import { renderHarness } from './render-harness.js'
+import { renderCrossContainerHarness, renderHarness } from './render-harness.js'
 
 test('loads the static dist harness', async () => {
   const harness = renderHarness()
@@ -78,6 +78,20 @@ test('pointer cancel clears active drag state', async () => {
   await expect
     .element(page.getByTestId('grid').getByTestId('cell-a'))
     .not.toHaveAttribute('data-dragging')
+
+  harness.destroy()
+})
+
+test('dragging across two manager containers moves items between lanes', async () => {
+  const harness = renderCrossContainerHarness()
+
+  harness.dragLeftAToRightBAndDrop()
+
+  await expect
+    .element(page.getByTestId('status'))
+    .toHaveTextContent('Moved Alpha from left to right')
+  await expect.element(page.getByTestId('left-cell-a')).toHaveTextContent('Delta')
+  await expect.element(page.getByTestId('right-cell-b')).toHaveTextContent('Alpha')
 
   harness.destroy()
 })
