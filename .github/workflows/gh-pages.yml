@@ -46,9 +46,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build demo for GitHub Pages
-        run: |
-          pnpm --filter dnd-manager-demo exec tsc --noEmit
-          pnpm --filter dnd-manager-demo exec vite build --base=/dnd-manager/
+        run: pnpm build:all
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
