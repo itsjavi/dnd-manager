@@ -3,7 +3,7 @@
 Simple, performant, and data-driven Drag-and-Drop library for vanilla JS, and compatible with any
 framework.
 
-This document provides practical examples of using `DragDropManager` in both vanilla JavaScript and
+This document provides practical examples of using the library in both vanilla JavaScript and
 React applications.
 
 ## Table of Contents
