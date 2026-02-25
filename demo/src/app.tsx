@@ -86,6 +86,9 @@ export default function App() {
           <pre className="inline-block max-w-full overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-200">
             <code>pnpm add dnd-manager</code>
           </pre>
+          <pre className="inline-block max-w-full overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-200">
+            <code>npx ctx7 skills install /itsjavi/dnd-manager</code>
+          </pre>
         </div>
         <div className="relative z-10 mt-4 flex flex-wrap gap-3 text-sm">
           <a
@@ -94,15 +97,7 @@ export default function App() {
             target="_blank"
             rel="noreferrer"
           >
-            GitHub Repository
-          </a>
-          <a
-            className="rounded-lg border border-slate-600 bg-slate-900/70 px-3 py-2 text-slate-100 transition hover:border-slate-400 hover:text-white"
-            href="https://github.com/itsjavi/dnd-manager/tree/main/demo/src"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Examples
+            GitHub
           </a>
           <a
             className="rounded-lg border border-slate-600 bg-slate-900/70 px-3 py-2 text-slate-100 transition hover:border-slate-400 hover:text-white"
@@ -111,6 +106,14 @@ export default function App() {
             rel="noreferrer"
           >
             npm
+          </a>
+          <a
+            className="rounded-lg border border-slate-600 bg-slate-900/70 px-3 py-2 text-slate-100 transition hover:border-slate-400 hover:text-white"
+            href="https://context7.com/itsjavi/dnd-manager"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Context7 Docs
           </a>
           <a
             className="rounded-lg border border-transparent bg-transparent px-3 py-2 text-slate-100 underline decoration-dotted underline-offset-4 transition hover:border-slate-400 hover:text-white"
